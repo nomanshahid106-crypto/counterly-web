@@ -1,0 +1,10 @@
+"use client";
+import { useEffect, useState } from 'react'; import { useParams } from 'next/navigation'; import { salesService, settingsService } from '@/services'; import { useStore } from '@/context/StoreContext'; import { formatMoney } from '@/lib/supabase';
+export default function Page(){ const {id}=useParams<{id:string}>(); const {current}=useStore(); const [sale,setSale]=useState<any>(null); const [settings,setSettings]=useState<any>(null);
+ useEffect(()=>{ (async()=>{ setSale(await salesService.detail(id)); if(current?.store_id){ try{ setSettings(await settingsService.get(current.store_id)); }catch{} } })(); },[id,current?.store_id]);
+ if(!sale) return <div className="card">Loading…</div>;
+ return <div style={{maxWidth:420,margin:'0 auto'}}><div className="card center"><img src="/counterly-icon.png" width={48} height={48} style={{borderRadius:10}} alt=""/><h2>{current?.stores?.name||'Counterly'}</h2>{settings?.receipt_header&&<p className="muted">{settings.receipt_header}</p>}<p className="muted">{current?.stores?.address||''}<br/>{current?.stores?.phone||''}</p><hr/><p>Receipt: {sale.receipt_number}<br/>{new Date(sale.created_at).toLocaleString()}</p><hr/>
+ {(sale.sale_items||[]).map((i:any)=><div key={i.id} style={{display:'flex',justifyContent:'space-between'}}><span>{i.product_name} × {i.quantity}</span><span>{formatMoney(i.line_total)}</span></div>)}
+ <hr/><div style={{textAlign:'right'}}><div>Subtotal: {formatMoney(sale.subtotal)}</div><div>Discount: -{formatMoney(sale.discount_amount)}</div><div>Tax: {formatMoney(sale.tax_amount)}</div><strong>Total: {formatMoney(sale.total)}</strong></div>
+ {(sale.payments||[]).map((p:any)=><div key={p.id} className="muted">{p.method}: {formatMoney(p.amount)}{p.change_due!=null&&` · Change: ${formatMoney(p.change_due)}`}</div>)}
+ <p className="muted">{settings?.receipt_footer||'Thank you for shopping with us!'}</p></div><button className="btn no-print" style={{width:'100%'}} onClick={()=>window.print()}>Print receipt</button></div>; }
