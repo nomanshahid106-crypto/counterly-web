@@ -1,5 +1,6 @@
 import { supabase, friendlyError } from '@/lib/supabase';
 import type { Category, PaymentMethod, Product, StoreSettings } from '@/types/database.types';
+import type { AdminUser, AuditEntry, MyAccess } from '@/lib/activity';
 
 // Accepts any Supabase response shape ({data, error}); callers cast to domain types.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -121,4 +122,43 @@ export const settingsService = {
   updateStore: (storeId: string, patch: { name?: string; address?: string; phone?: string; email?: string }) => unwrap(supabase.from('stores').update(patch).eq('id', storeId)),
   getStore: (storeId: string) => unwrap(supabase.from('stores').select('*').eq('id', storeId).single()),
 };
+/**
+ * True when the Admin / Web Access backend has not been installed yet
+ * (supabase/ADMIN_SETUP.sql has not been run in the Supabase SQL Editor).
+ * Detects: PostgREST "function not found in schema cache" (PGRST202),
+ * Postgres undefined_function (42883), undefined_table (42P01),
+ * and their message equivalents.
+ */
+export function isSetupMissingError(err: unknown): boolean {
+  if (!err) return false;
+  const e = err as { code?: string; message?: string };
+  const code = e.code ?? '';
+  const msg = e.message ?? String(err);
+  if (code === 'PGRST202' || code === '42883' || code === '42P01') return true;
+  if (/could not find the function/i.test(msg)) return true;
+  if (/could not find the table/i.test(msg)) return true;
+  if (/function .* does not exist/i.test(msg)) return true;
+  if (/relation .* does not exist/i.test(msg)) return true;
+  return false;
+}
+
+/**
+ * Admin Dashboard + Web Module Access Control.
+ * All privileged work happens inside SECURITY DEFINER Postgres functions
+ * (see supabase/ADMIN_SETUP.sql). No service_role key is used anywhere,
+ * and normal users cannot write the access tables (RLS has no write
+ * policies for them), so web access can only be changed by an admin
+ * through these RPCs. The mobile app never calls any of this.
+ */
+export const adminService = {
+  getMyAccess: () => unwrap(supabase.rpc('get_my_access')) as Promise<MyAccess>,
+  touchActivity: () => unwrap(supabase.rpc('touch_my_activity')),
+  listUsers: () => unwrap(supabase.rpc('admin_list_users')) as Promise<AdminUser[]>,
+  setAccess: (userId: string, enabled: boolean) =>
+    unwrap(supabase.rpc('admin_set_web_access', { p_target_user_id: userId, p_enabled: enabled })) as Promise<{ user_id: string; web_access_enabled: boolean }>,
+  setAccessByEmail: (email: string, enabled: boolean) =>
+    unwrap(supabase.rpc('admin_set_web_access_by_email', { p_email: email, p_enabled: enabled })) as Promise<{ user_id: string; web_access_enabled: boolean }>,
+  auditLog: (limit = 50) => unwrap(supabase.rpc('admin_audit_log', { p_limit: limit })) as Promise<AuditEntry[]>,
+};
+
 export const newIdempotencyKey = () => `${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;

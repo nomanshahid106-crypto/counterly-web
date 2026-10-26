@@ -2,7 +2,7 @@
   "name": "counterly-web",
   "version": "0.1.0",
   "private": true,
-  "scripts": {"dev":"next dev","build":"next build","start":"next start","lint":"next lint"},
+  "scripts": {"dev":"next dev","build":"next build","start":"next start","lint":"next lint","test":"node --test \"tests/**/*.test.ts\""},
   "dependencies": {"@supabase/supabase-js":"^2.57.4","next":"15.5.7","react":"19.1.0","react-dom":"19.1.0"},
   "devDependencies": {"@types/node":"^22.0.0","@types/react":"^19.0.0","@types/react-dom":"^19.0.0","typescript":"^5.6.0"}
 }
